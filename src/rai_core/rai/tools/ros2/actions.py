@@ -106,6 +106,8 @@ class ROS2ActionToolkit(BaseROS2Toolkit):
                 writable=self.writable,
                 forbidden=self.forbidden,
             ),
+            GetROS2ActionResultTool(),
+            GetROS2ActionIDsTool(),
             GetROS2ActionsNamesAndTypesTool(
                 connector=self.connector,
                 readable=self.readable,
