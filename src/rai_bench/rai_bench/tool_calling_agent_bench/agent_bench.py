@@ -25,6 +25,7 @@ from langchain_core.runnables.config import RunnableConfig
 from langgraph.errors import GraphRecursionError
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
+from rai.agents.dual_agent import DualAgentState
 from rai.messages.multimodal import HumanMultimodalMessage
 
 from rai_bench.tool_calling_agent_bench.agent_tasks_interfaces import (
@@ -186,6 +187,7 @@ class ToolCallingAgentBenchmark:
                 task.log_error(msg=f"Graph Recursion Error: {e}")
             te = time.perf_counter()
             total_time = te - ts
+
             result = task.result
 
             for callback in callbacks:
@@ -212,7 +214,113 @@ class ToolCallingAgentBenchmark:
             )
 
             self.task_results.append(task_result)
+            if model_name not in self.model_results:
+                self.model_results[model_name] = []
+            self.model_results[model_name].append(task_result)
 
+            self.csv_writerow(self.results_filename, task_result)
+
+            completed_tasks = sum(
+                len(results) for results in self.model_results.values()
+            )
+            if completed_tasks == self.num_tasks:
+                self._compute_and_save_summary()
+
+        except StopIteration:
+            if self.task_results:
+                self._compute_and_save_summary()
+            print("No more scenarios left to run.")
+
+    def run_next_dual_agent(self, agent, model_name: str):
+        """Runs the next task of the benchmark with a dual agent.
+
+        Parameters
+        ----------
+        agent : CompiledStateGraph
+            LangChain dual agent.
+        model_name : str
+            Name of the LLM models.
+        """
+        try:
+            i, task = next(self._tasks)
+            self.logger.info(
+                f"RUNNING TASK NUMBER {i + 1} / {self.num_tasks}, TASK {task.get_prompt()}"
+            )
+
+            # Create initial state
+            initial_state: DualAgentState = {
+                "vision_messages": [],
+                "tool_messages": [],
+                "original_question": None,
+                "vision_response": None,
+                "final_response": None,
+                "tool_results": {},
+            }
+
+            # Add images if the task is a spatial reasoning task
+            if isinstance(task, SpatialReasoningAgentTask):
+                initial_state["vision_messages"] = [
+                    HumanMultimodalMessage(
+                        content=task.get_prompt(), images=task.get_images()
+                    )
+                ]
+            else:
+                initial_state["vision_messages"] = [
+                    HumanMultimodalMessage(content=task.get_prompt())
+                ]
+
+            callbacks = self.score_tracing_handler.get_callbacks()
+            run_id = uuid.uuid4()
+            config: RunnableConfig = {
+                "run_id": run_id,
+                "callbacks": callbacks,
+                "tags": [task.complexity, model_name],
+                "recursion_limit": task.recursion_limit,
+            }
+
+            ts = time.perf_counter()
+            try:
+                # Invoke the dual agent with the initial state
+                final_state = agent.invoke(initial_state, config=config)
+
+                # For verification, we need to extract the tool calls and format them correctly
+                tool_messages = final_state["tool_messages"]
+
+                # Create a formatted response that contains the necessary structure for verification
+                formatted_response = {"messages": tool_messages}
+                task.verify_tool_calls(response=formatted_response)
+
+            except GraphRecursionError as e:
+                task.log_error(msg=f"Graph Recursion Error: {e}")
+
+            te = time.perf_counter()
+            total_time = te - ts
+
+            result = task.result
+            for callback in callbacks:
+                self.score_tracing_handler.send_score(
+                    callback=callback,
+                    run_id=run_id,
+                    success=result.success,
+                    errors=result.errors,
+                )
+
+            self.logger.info(
+                f"TASK SUCCESS: {result.success}, TOTAL TIME: {total_time:.3f}"
+            )
+
+            task_result = TaskResult(
+                task_prompt=task.get_prompt(),
+                system_prompt=task.get_system_prompt(),
+                complexity=task.complexity,
+                model_name=model_name,
+                success=result.success,
+                errors=result.errors if result.errors else [],
+                total_time=total_time,
+                run_id=run_id,
+            )
+
+            self.task_results.append(task_result)
             if model_name not in self.model_results:
                 self.model_results[model_name] = []
             self.model_results[model_name].append(task_result)
