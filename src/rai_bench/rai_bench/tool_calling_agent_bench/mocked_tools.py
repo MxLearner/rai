@@ -315,6 +315,9 @@ class MockStartROS2ActionTool(StartROS2ActionTool):
     connector: ROS2ARIConnector = MagicMock(spec=ROS2ARIConnector)
     available_actions: List[str] = []
     available_action_types: List[str] = []
+    expected_action_args: Dict[str, Any] = {}
+
+    # action_id: str = '12345'
 
     def _run(
         self, action_name: str, action_type: str, action_args: Dict[str, Any]
@@ -328,9 +331,10 @@ class MockStartROS2ActionTool(StartROS2ActionTool):
                 f"Expected one of action types: {self.available_action_types}, got {action_type}"
             )
         action_id = str(uuid.uuid4())
-        response = "mock_action_response_" + action_id
+        # action_id = self.action_id
+        response = action_id
         self.internal_action_id_mapping[response] = action_id
-        return "Action started with ID: " + response
+        return "Action started with ID: " + action_id
 
 
 class MockCancelROS2ActionTool(CancelROS2ActionTool):
@@ -345,38 +349,41 @@ class MockCancelROS2ActionTool(CancelROS2ActionTool):
 
 class MockGetROS2ActionFeedbackTool(GetROS2ActionFeedbackTool):
     connector: ROS2ARIConnector = MagicMock(spec=ROS2ARIConnector)
-    available_feedbacks: Dict[str, List[Any]] = {}
-    internal_action_id_mapping: Dict[str, str] = {}
+    # available_feedbacks: Dict[str, List[Any]] = {}
+    # internal_action_id_mapping: Dict[str, str] = {}
     action_feedbacks_store_lock: Lock = Lock()
 
     def _run(self, action_id: str) -> str:
-        if action_id not in self.internal_action_id_mapping:
+        print(f"Internal action ID mapping: {self.internal_action_id_mapping}")
+        if action_id not in self.internal_action_id_mapping.values():
             raise KeyError(f"Action ID {action_id} not found in internal mapping.")
-        external_id = self.internal_action_id_mapping[action_id]
-        with self.action_feedbacks_store_lock:
-            feedbacks = self.available_feedbacks.get(external_id, [])
-            self.available_feedbacks[external_id] = []
-        return str(feedbacks)
+        # external_id = self.internal_action_id_mapping[action_id]
+        # with self.action_feedbacks_store_lock:
+        #     feedbacks = self.available_feedbacks.get(external_id, [])
+        #     self.available_feedbacks[external_id] = []
+        return f"Feedback for action {action_id} retrieved successfully"
 
 
 class MockGetROS2ActionResultTool(GetROS2ActionResultTool):
-    available_results: Dict[str, Any] = {}
-    internal_action_id_mapping: Dict[str, str] = {}
+    # available_results: Dict[str, Any] = {}
+    # internal_action_id_mapping: Dict[str, str] = {}
     action_results_store_lock: Lock = Lock()
+    # mocked_action_results_store_lock: Lock = Lock()
 
     def _run(self, action_id: str) -> str:
-        if action_id not in self.internal_action_id_mapping:
+        if action_id not in self.internal_action_id_mapping.values():
+            print(f"Internal action ID mapping: {self.internal_action_id_mapping}")
             raise KeyError(f"Action ID {action_id} not found in internal mapping.")
-        external_id = self.internal_action_id_mapping[action_id]
-        with self.action_results_store_lock:
-            if external_id not in self.available_results:
-                raise ValueError(f"No result available for action {action_id}")
-            result = self.available_results[external_id]
-        return str(result)
+        # external_id = self.internal_action_id_mapping[action_id]
+        # with self.action_results_store_lock:
+        #     if external_id not in self.available_results:
+        #         raise ValueError(f"No result available for action {action_id}")
+        #     result = self.available_results[external_id]
+        return f"Result for action {action_id} retrieved successfully"
 
 
 class MockGetROS2ActionIDsTool(GetROS2ActionIDsTool):
-    internal_action_id_mapping: Dict[str, str] = {}
+    # internal_action_id_mapping: Dict[str, str] = {}
 
     def _run(self) -> str:
         return str(list(self.internal_action_id_mapping.keys()))
