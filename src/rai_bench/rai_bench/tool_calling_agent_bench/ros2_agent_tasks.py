@@ -26,6 +26,7 @@ from rai.tools.ros.manipulation import MoveToPointToolInput
 
 from rai_bench.tool_calling_agent_bench.actions import (
     ActionBaseModel,
+    DriveOnHeadingAction,
     NavigateToPoseAction,
     SpinAction,
 )
@@ -55,6 +56,92 @@ loggers_type = logging.Logger
 PROACTIVE_ROS2_EXPERT_SYSTEM_PROMPT = """You are a ROS 2 expert helping a user with their ROS 2 questions. You have access to various tools that allow you to query the ROS 2 system.
                 Be proactive and use the tools to answer questions.
                 """
+
+INTERFACES: Dict[str, str] = {
+    "nav2_msgs/action/Spin": """
+#goal definition
+float32 target_yaw
+builtin_interfaces/Duration time_allowance
+	int32 sec
+	uint32 nanosec
+---
+#result definition
+builtin_interfaces/Duration total_elapsed_time
+	int32 sec
+	uint32 nanosec
+---
+#feedback definition
+float32 angular_distance_traveled
+""",
+    "nav2_msgs/action/NavigateToPose": """
+#goal definition
+geometry_msgs/PoseStamped pose
+	std_msgs/Header header
+		builtin_interfaces/Time stamp
+			int32 sec
+			uint32 nanosec
+		string frame_id
+	Pose pose
+		Point position
+			float64 x
+			float64 y
+			float64 z
+		Quaternion orientation
+			float64 x 0
+			float64 y 0
+			float64 z 0
+			float64 w 1
+string behavior_tree
+---
+#result definition
+std_msgs/Empty result
+---
+#feedback definition
+geometry_msgs/PoseStamped current_pose
+	std_msgs/Header header
+		builtin_interfaces/Time stamp
+			int32 sec
+			uint32 nanosec
+		string frame_id
+	Pose pose
+		Point position
+			float64 x
+			float64 y
+			float64 z
+		Quaternion orientation
+			float64 x 0
+			float64 y 0
+			float64 z 0
+			float64 w 1
+builtin_interfaces/Duration navigation_time
+	int32 sec
+	uint32 nanosec
+builtin_interfaces/Duration estimated_time_remaining
+	int32 sec
+	uint32 nanosec
+int16 number_of_recoveries
+float32 distance_remaining
+""",
+    "nav2_msgs/action/DriveOnHeading": """
+#goal definition
+geometry_msgs/Point target
+	float64 x
+	float64 y
+	float64 z
+float32 speed
+builtin_interfaces/Duration time_allowance
+	int32 sec
+	uint32 nanosec
+---
+#result definition
+builtin_interfaces/Duration total_elapsed_time
+	int32 sec
+	uint32 nanosec
+---
+#feedback definition
+float32 distance_traveled
+""",
+}
 
 
 class TaskParametrizationError(Exception):
@@ -3130,34 +3217,6 @@ class NavigateToPointTask(ROS2ToolCallingAgentTask):
         "/wait": "nav2_msgs/action/Wait",
     }
     services_and_types: Dict[str, str] = NAVIGATION_SERVICES_AND_TYPES
-    interfaces: Dict[str, Dict[str, Any]] = {
-        "nav2_msgs/action/NavigateToPose": {
-            "goal": {
-                "pose": {
-                    "header": {"stamp": {"sec": 0, "nanosec": 0}, "frame_id": ""},
-                    "pose": {
-                        "position": {"x": 0.0, "y": 0.0, "z": 0.0},
-                        "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
-                    },
-                },
-                "behavior_tree": "",
-            },
-            "result": {"result": {}},
-            "feedback": {
-                "current_pose": {
-                    "header": {"stamp": {"sec": 0, "nanosec": 0}, "frame_id": ""},
-                    "pose": {
-                        "position": {"x": 0.0, "y": 0.0, "z": 0.0},
-                        "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
-                    },
-                },
-                "navigation_time": {"sec": 0, "nanosec": 0},
-                "estimated_time_remaining": {"sec": 0, "nanosec": 0},
-                "number_of_recoveries": 0,
-                "distance_remaining": 0.0,
-            },
-        },
-    }
     action_models: List[type[ActionBaseModel]] = [NavigateToPoseAction]
 
     def __init__(self, logger: loggers_type | None = None) -> None:
@@ -3170,10 +3229,6 @@ class NavigateToPointTask(ROS2ToolCallingAgentTask):
             f"service: {service}\ntype: {srv_type}\n"
             for service, srv_type in self.services_and_types.items()
         ]
-        interface_strings = {
-            msg_type: json.dumps(interface)
-            for msg_type, interface in self.interfaces.items()
-        }
 
         self.expected_tools: List[BaseTool] = [
             MockGetROS2ActionsNamesAndTypesTool(
@@ -3189,7 +3244,7 @@ class NavigateToPointTask(ROS2ToolCallingAgentTask):
             MockGetROS2ServicesNamesAndTypesTool(
                 mock_service_names_and_types=service_strings
             ),
-            MockGetROS2MessageInterfaceTool(mock_interfaces=interface_strings),
+            MockGetROS2MessageInterfaceTool(mock_interfaces=INTERFACES),
         ]
 
     def get_system_prompt(self) -> str:
@@ -3247,13 +3302,6 @@ class NavigateToPointTask(ROS2ToolCallingAgentTask):
 
 class SpinAroundTask(ROS2ToolCallingAgentTask):
     complexity = "medium"
-    interfaces: Dict[str, Dict[str, Any]] = {
-        "nav2_msgs/action/Spin": {
-            "goal": {"target_yaw": 0.0, "time_allowance": {"sec": 0, "nanosec": 0}},
-            "result": {"total_elapsed_time": {"sec": 0, "nanosec": 0}},
-            "feedback": {"angular_distance_traveled": 0.0},
-        }
-    }
     actions_and_types: Dict[str, str] = {
         "/assisted_teleop": "nav2_msgs/action/AssistedTeleop",
         "/backup": "nav2_msgs/action/BackUp",
@@ -3287,6 +3335,7 @@ class SpinAroundTask(ROS2ToolCallingAgentTask):
             ),
             MockGetROS2ActionFeedbackTool(),
             MockGetROS2ActionResultTool(),
+            MockGetROS2MessageInterfaceTool(mock_interfaces=INTERFACES),
         ]
 
     def get_system_prompt(self) -> str:
@@ -3316,6 +3365,91 @@ class SpinAroundTask(ROS2ToolCallingAgentTask):
                     "action_args": {
                         "time_allowance": {"sec": ANY_VALUE, "nanosec": ANY_VALUE}
                     }
+                },
+            },
+            {"name": "get_ros2_action_feedback", "args": {"action_id": ANY_VALUE}},
+            {"name": "get_ros2_action_result", "args": {"action_id": ANY_VALUE}},
+        ]
+        self._check_multiple_tool_calls_from_list(
+            tool_calls=tool_calls, expected_tool_calls=expected_tool_calls
+        )
+        if not self.result.errors:
+            self.result.success = True
+
+
+class MoveToFrontTask(ROS2ToolCallingAgentTask):
+    complexity = "medium"
+    actions_and_types: Dict[str, str] = {
+        "/assisted_teleop": "nav2_msgs/action/AssistedTeleop",
+        "/backup": "nav2_msgs/action/BackUp",
+        "/compute_path_through_poses": "nav2_msgs/action/ComputePathThroughPoses",
+        "/compute_path_to_pose": "nav2_msgs/action/ComputePathToPose",
+        "/drive_on_heading": "nav2_msgs/action/DriveOnHeading",
+        "/follow_path": "nav2_msgs/action/FollowPath",
+        "/follow_waypoints": "nav2_msgs/action/FollowWaypoints",
+        "/navigate_through_poses": "nav2_msgs/action/NavigateThroughPoses",
+        "/navigate_to_pose": "nav2_msgs/action/NavigateToPose",
+        "/smooth_path": "nav2_msgs/action/SmoothPath",
+        "/spin": "nav2_msgs/action/Spin",
+        "/wait": "nav2_msgs/action/Wait",
+    }
+    action_models: List[type[ActionBaseModel]] = [DriveOnHeadingAction]
+    services_and_types: Dict[str, str] = NAVIGATION_SERVICES_AND_TYPES
+
+    def __init__(self, logger: loggers_type | None = None) -> None:
+        super().__init__(logger=logger)
+        action_strings = [
+            f"action: {action}\ntype: {act_type}\n"
+            for action, act_type in self.actions_and_types.items()
+        ]
+        self.expected_tools: List[BaseTool] = [
+            MockGetROS2ActionsNamesAndTypesTool(
+                mock_actions_names_and_types=action_strings
+            ),
+            MockStartROS2ActionTool(
+                available_actions=list(self.actions_and_types.keys()),
+                available_action_types=list(self.actions_and_types.values()),
+                available_action_models=self.action_models,
+            ),
+            MockGetROS2ActionFeedbackTool(),
+            MockGetROS2ActionResultTool(),
+            MockGetROS2MessageInterfaceTool(mock_interfaces=INTERFACES),
+        ]
+
+    def get_system_prompt(self) -> str:
+        return ROBOT_NAVIGATION_SYSTEM_PROMPT
+
+    def get_prompt(self) -> str:
+        return "Move 2 meters to the front."
+
+    def verify_tool_calls(self, response: dict[str, Any]):
+        messages = response["messages"]
+        ai_messages: Sequence[AIMessage] = [
+            message for message in messages if isinstance(message, AIMessage)
+        ]
+        tool_calls = [
+            tool_call for message in ai_messages for tool_call in message.tool_calls
+        ]
+        expected_tool_calls: list[dict[str, Any]] = [
+            {"name": "get_ros2_actions_names_and_types", "args": {}},
+            {
+                "name": "start_ros2_action",
+                "args": {
+                    "action_name": "/drive_on_heading",
+                    "action_type": "nav2_msgs/action/DriveOnHeading",
+                    "action_args": {
+                        "target": {"x": 2.0},
+                        "speed": ANY_VALUE,
+                    },
+                    # TODO (mkotynia): add support for ranges of allowed values
+                },
+                "optional_args": {
+                    "action_name": "/drive_on_heading",
+                    "action_type": "nav2_msgs/action/DriveOnHeading",
+                    "action_args": {
+                        "target": {"y": 0.0, "z": 0.0},
+                        "time_allowance": {"sec": ANY_VALUE, "nanosec": ANY_VALUE},
+                    },
                 },
             },
             {"name": "get_ros2_action_feedback", "args": {"action_id": ANY_VALUE}},

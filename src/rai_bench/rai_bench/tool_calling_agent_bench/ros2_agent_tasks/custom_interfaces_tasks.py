@@ -25,6 +25,8 @@ PROACTIVE_ROS2_EXPERT_SYSTEM_PROMPT = """You are a ROS 2 expert helping a user w
                 Be proactive and use the tools to answer questions.
                 """
 
+# TODO (mktotynia) move it to a separate file (not all interfaces are custom)
+
 # dict of interfaces where keys are interfaces types and values are output
 # of GetROS2MessageInterfaceTool which are same as ros2 interface show outputs
 # the dict contains custom as well as couple other common interfaces
