@@ -289,9 +289,9 @@ class ToolCallingAgentTask(ABC):
                     return False
             # Otherwise check if value matches (skip if ANY_VALUE)
             elif expected_value is not ANY_VALUE and arg_value != expected_value:
-                self.log_error(
-                    msg=f"Argument '{path}.{arg_name}' should have value '{expected_value}', but got '{arg_value}'"
-                )
+                # self.log_error(
+                #     msg=f"Argument '{path}.{arg_name}' should have value '{expected_value}', but got '{arg_value}'"
+                # )
                 return False
 
         # Check no unexpected arguments are present
@@ -302,7 +302,7 @@ class ToolCallingAgentTask(ABC):
 
             # Check if it's an allowed optional argument
             if arg_name not in expected_optional_args:
-                self.log_error(msg=f"Unexpected argument '{path}.{arg_name}' found")
+                # self.log_error(msg=f"Unexpected argument '{path}.{arg_name}' found")
                 return False
 
             # Get the expected value for this optional argument
@@ -327,10 +327,10 @@ class ToolCallingAgentTask(ABC):
                 ):
                     return False
             # Check if value matches for non-nested optional args
-            elif arg_value != expected_value:
-                self.log_error(
-                    msg=f"Optional argument '{path}.{arg_name}' should have value '{expected_value}', but got '{arg_value}'"
-                )
+            elif arg_value is not ANY_VALUE and arg_value != expected_value:
+                # self.log_error(
+                #     msg=f"Optional argument '{path}.{arg_name}' should have value '{expected_value}', but got '{arg_value}'"
+                # )
                 return False
 
         return True
