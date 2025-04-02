@@ -19,9 +19,7 @@ from rai_bench.tool_calling_agent_bench.agent_tasks_interfaces import (
 )
 from rai_bench.tool_calling_agent_bench.ros2_agent_tasks import (
     NavigateToPointTask,
+    SpinAroundTask,
 )
 
-tasks: Sequence[ToolCallingAgentTask] = [
-    NavigateToPointTask(),
-    #  SpinAroundTask()
-]
+tasks: Sequence[ToolCallingAgentTask] = [NavigateToPointTask(), SpinAroundTask()]
