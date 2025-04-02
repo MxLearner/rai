@@ -2,40 +2,11 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from rai_bench.tool_calling_agent_bench.actions.action_base_model import ActionBaseModel
-
-
-class Time(BaseModel):
-    sec: Optional[int] = 0
-    nanosec: Optional[int] = 0
-
-
-class Header(BaseModel):
-    stamp: Optional[Time] = Time()
-    frame_id: str
-
-
-class Position(BaseModel):
-    x: float
-    y: float
-    z: float
-
-
-class Orientation(BaseModel):
-    x: Optional[float] = 0.0
-    y: Optional[float] = 0.0
-    z: Optional[float] = 0.0
-    w: Optional[float] = 1.0
-
-
-class Pose(BaseModel):
-    position: Position
-    orientation: Optional[Orientation] = Orientation()
-
-
-class PoseStamped(BaseModel):
-    header: Header
-    pose: Pose
+from rai_bench.tool_calling_agent_bench.actions.action_base_model import (
+    ActionBaseModel,
+    PoseStamped,
+    Time,
+)
 
 
 class Goal(BaseModel):
@@ -63,4 +34,4 @@ class NavigateToPoseAction(ActionBaseModel):
     feedback: Feedback
 
 
-# TODO (mkotynia): create init for actions
+# TODO (mkotynia): Everything should be Optional?
