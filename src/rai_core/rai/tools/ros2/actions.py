@@ -213,7 +213,12 @@ class GetROS2ActionFeedbackTool(BaseROS2Tool):
             external_action_id = self.internal_action_id_mapping[action_id]
             feedbacks = self.action_feedbacks_store[external_action_id]
             self.action_feedbacks_store[external_action_id] = []
-            return str(feedbacks)
+            if len(feedbacks) < 10:
+                return str(feedbacks)
+            elif len(feedbacks) < 100:
+                return str(feedbacks[::10])
+            else:
+                return str(feedbacks[::100])
 
 
 class GetROS2ActionResultToolInput(BaseModel):
@@ -240,8 +245,11 @@ class GetROS2ActionResultTool(BaseTool):
     def _run(self, action_id: str) -> str:
         with self.action_results_store_lock:
             external_action_id = self.internal_action_id_mapping[action_id]
-            result = self.action_results_store[external_action_id]
-            return str(result)
+            try:
+                result = self.action_results_store[external_action_id]
+                return str(result)
+            except KeyError:
+                return "Action has not finished yet"
 
 
 class CancelROS2ActionToolInput(BaseModel):
