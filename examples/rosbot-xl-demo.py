@@ -30,6 +30,8 @@ from rai.tools.ros2 import (
     GetROS2MessageInterfaceTool,
     GetROS2TransformTool,
 )
+from rai_open_set_vision.tools import GetGrabbingPointTool
+from rai.tools.ros.manipulation import GetObjectPositionsTool
 from rai.tools.ros2.actions import (
     GetROS2ActionFeedbackTool,
     GetROS2ActionResultTool,
@@ -121,17 +123,17 @@ def initialize_agent():
         # WaitForSecondsTool(),
         # GetDetectionTool(connector=connector, node=connector.node),
         # GetDistanceToObjectsTool(connector=connector, node=connector.node),
-        # GetObjectPositionsTool(
-        #     connector=connector,
-        #     target_frame="map",
-        #     source_frame="sensor_frame",
-        #     camera_topic="/camera/camera/color/image_raw",
-        #     depth_topic="/camera/camera/depth/image_rect_raw",
-        #     camera_info_topic="/camera/camera/color/camera_info",
-        #     get_grabbing_point_tool=GetGrabbingPointTool(
-        #         connector=connector,
-        #     ),
-        # ),
+        GetObjectPositionsTool(
+            connector=connector,
+            target_frame="map",
+            source_frame="sensor_frame",
+            camera_topic="/camera/camera/color/image_raw",
+            depth_topic="/camera/camera/depth/image_rect_raw",
+            camera_info_topic="/camera/camera/color/camera_info",
+            get_grabbing_point_tool=GetGrabbingPointTool(
+                connector=connector,
+            ),
+        ),
     ]
     SYSTEM_PROMPT = (
         """You are an autonomous robot connected to ros2 environment. Your main goal is to fulfill the user's requests.
