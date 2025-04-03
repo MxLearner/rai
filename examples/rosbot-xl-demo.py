@@ -19,27 +19,24 @@ import rclpy.executors
 import rclpy.logging
 
 # import streamlit as st
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-from langchain_core.tools import render_text_description_and_args, tool
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.tools import tool
 from rai.agents.conversational_agent import create_conversational_agent
-from rai.agents.integrations.streamlit import get_streamlit_cb, streamlit_invoke
 from rai.communication.ros2 import ROS2ARIConnector
 from rai.messages import HumanMultimodalMessage
+from rai.tools.ros.manipulation import GetObjectPositionsTool
 from rai.tools.ros2 import (
     GetROS2ImageTool,
-    GetROS2MessageInterfaceTool,
     GetROS2TransformTool,
 )
-from rai_open_set_vision.tools import GetGrabbingPointTool
-from rai.tools.ros.manipulation import GetObjectPositionsTool
-from rai.tools.ros2.actions import (
-    GetROS2ActionFeedbackTool,
-    GetROS2ActionResultTool,
-    ROS2ActionToolkit,
-    StartROS2ActionTool,
+from rai.tools.ros2.nav2 import (
+    CancelNavigateToPoseTool,
+    GetNavigateToPoseFeedbackTool,
+    GetNavigateToPoseResultTool,
+    NavigateToPoseTool,
 )
-from rai.tools.time import WaitForSecondsTool
 from rai.utils.model_initialization import get_llm_model, get_tracing_callbacks
+from rai_open_set_vision.tools import GetGrabbingPointTool
 
 
 # @st.cache_resource
@@ -48,9 +45,6 @@ def initialize_agent():
     connector = ROS2ARIConnector()
     transform_tool = GetROS2TransformTool(connector=connector)
     image_tool = GetROS2ImageTool(connector=connector)
-    start_action_tool = StartROS2ActionTool(connector=connector)
-    get_action_feedback_tool = GetROS2ActionFeedbackTool(connector=connector)
-    get_action_result_tool = GetROS2ActionResultTool()
 
     @tool
     def where_am_i():
@@ -81,48 +75,23 @@ def initialize_agent():
         response = llm.invoke(task, config={"callbacks": []})
         return cast(str, response.content)
 
-    @tool
-    def go_to_place(x: float, y: float, z: float):
-        """
-        Go to a specific place
-        """
-        action_id = start_action_tool._run(
-            action_name="navigate_to_pose",
-            action_type="nav2_msgs/action/NavigateToPose",
-            action_args={
-                "pose": {
-                    "header": {"frame_id": "map", "stamp": {"sec": 0, "nanosec": 0}},
-                    "pose": {
-                        "position": {"x": x, "y": y, "z": z},
-                        "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
-                    },
-                },
-            },
-        )
-        result = ""
-        while True:
-            try:
-                result = get_action_result_tool._run(action_id)
-                print("Result: ", result)
-                continue
-            except KeyError as e:
-                print(e)
-                break
-        return str(result)
-
     tools = [
         where_am_i,
         what_do_i_see,
-        #  go_to_place,
-        *ROS2ActionToolkit(connector=connector).get_tools(),
-        GetROS2MessageInterfaceTool(connector=connector),
-        WaitForSecondsTool(),
-        # *ROS2Toolkit(
-        #     connector=connector, forbidden=["/tf", "/cmd_vel"]
-        # ).get_tools(),
-        # WaitForSecondsTool(),
-        # GetDetectionTool(connector=connector, node=connector.node),
-        # GetDistanceToObjectsTool(connector=connector, node=connector.node),
+        NavigateToPoseTool(
+            connector=connector,
+            action_name="navigate_to_pose",
+            frame_id="map",
+        ),
+        GetNavigateToPoseFeedbackTool(
+            connector=connector,
+        ),
+        GetNavigateToPoseResultTool(
+            connector=connector,
+        ),
+        CancelNavigateToPoseTool(
+            connector=connector,
+        ),
         GetObjectPositionsTool(
             connector=connector,
             target_frame="map",
@@ -135,9 +104,10 @@ def initialize_agent():
             ),
         ),
     ]
-    SYSTEM_PROMPT = (
-        """You are an autonomous robot connected to ros2 environment. Your main goal is to fulfill the user's requests.
+    SYSTEM_PROMPT = """You are an autonomous robot connected to ros2 environment. Your main goal is to fulfill the user's requests.
     Do not make assumptions about the environment you are currently in.
+
+    You always respond in first person (as a robot). You always treat data gathered by the tools as a description of your current state coming from within.
 
     Here are the locations of places in your environment:
 
@@ -147,13 +117,7 @@ def initialize_agent():
     # Living room:
     (-0.82, 3.5, 0.0)
 
-    Here are the tools you can use:
-    """
-        + f"{render_text_description_and_args(tools)}"
-    ) + """
-    Here are some examples of how to use the tools:
-    start_ros2_action, args: {'action_name': '/navigate_to_pose', 'action_type': 'nav2_msgs/action/NavigateToPose', 'action_args': {'pose': {'header': {'stamp': {'sec': 0, 'nanosec': 0}, 'frame_id': 'map'}, 'pose': {'position': {'x': -0.82, 'y': 3.5, 'z': 0.0}, 'orientation': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}}}}}
-"""
+   """
 
     agent = create_conversational_agent(
         llm=get_llm_model("complex_model", streaming=True),
@@ -166,62 +130,17 @@ def initialize_agent():
 
 
 def main():
-    st.set_page_config(
-        page_title="RAI ROSBotXL Demo",
-        page_icon=":robot:",
-    )
-    st.title("RAI ROSBotXL Demo")
-    st.markdown("---")
-
-    st.sidebar.header("Tool Calls History")
-
-    if "graph" not in st.session_state:
-        graph, callbacks = initialize_agent()
-        st.session_state["graph"] = graph
-        st.session_state["callbacks"] = callbacks
-
-    if "messages" not in st.session_state:
-        st.session_state["messages"] = [
-            AIMessage(content="Hi! I am ROSBotXL. What can I do for you?")
-        ]
-
-    prompt = st.chat_input()
-    for msg in st.session_state.messages:
-        if isinstance(msg, AIMessage):
-            if msg.content:
-                st.chat_message("assistant").write(msg.content)
-        elif isinstance(msg, HumanMultimodalMessage):
-            continue
-        elif isinstance(msg, HumanMessage):
-            st.chat_message("user").write(msg.content)
-        elif isinstance(msg, ToolMessage):
-            with st.sidebar.expander(f"Tool: {msg.name}", expanded=False):
-                st.code(msg.content, language="json")
-
-    if prompt:
-        st.session_state.messages.append(HumanMessage(content=prompt))
-        st.chat_message("user").write(prompt)
-        with st.chat_message("assistant"):
-            st_callback = get_streamlit_cb(st.container())
-            streamlit_invoke(
-                st.session_state["graph"],
-                st.session_state.messages,
-                [st_callback, *st.session_state["callbacks"]],
-            )
-
-
-def main2():
     agent, callbacks = initialize_agent()
     state = {"messages": []}
     while True:
         inp = input("Enter your message: ")
         state["messages"].append(HumanMessage(content=inp))
         l_before = len(state["messages"])
-        response = agent.invoke(state, config={"callbacks": callbacks, 'recursion_limit': 2000})
+        agent.invoke(state, config={"callbacks": callbacks, "recursion_limit": 2000})
         l_after = len(state["messages"])
         for msg in state["messages"][l_before:l_after]:
             msg.pretty_print()
 
 
 if __name__ == "__main__":
-    main2()
+    main()
