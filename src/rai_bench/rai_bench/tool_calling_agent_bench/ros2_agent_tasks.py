@@ -23,6 +23,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.messages.tool import ToolCall
 from langchain_core.tools import BaseTool
 from rai.tools.ros.manipulation import MoveToPointToolInput
+from rai_open_set_vision.tools.gdino_tools import DistanceMeasurement
 
 from rai_bench.tool_calling_agent_bench.actions import (
     ActionBaseModel,
@@ -36,6 +37,7 @@ from rai_bench.tool_calling_agent_bench.agent_tasks_interfaces import (
 )
 from rai_bench.tool_calling_agent_bench.mocked_tools import (
     MockCallROS2ServiceTool,
+    MockGetDistanceToObjectsTool,
     MockGetObjectPositionsTool,
     MockGetROS2ActionFeedbackTool,
     MockGetROS2ActionResultTool,
@@ -3201,6 +3203,7 @@ NAVIGATION_SERVICES_AND_TYPES: Dict[str, str] = {
 
 
 class NavigateToPointTask(ROS2ToolCallingAgentTask):
+    recursion_limit = 50
     complexity = "medium"
     actions_and_types: Dict[str, str] = {
         "/assisted_teleop": "nav2_msgs/action/AssistedTeleop",
@@ -3301,6 +3304,7 @@ class NavigateToPointTask(ROS2ToolCallingAgentTask):
 
 
 class SpinAroundTask(ROS2ToolCallingAgentTask):
+    recursion_limit = 50
     complexity = "medium"
     actions_and_types: Dict[str, str] = {
         "/assisted_teleop": "nav2_msgs/action/AssistedTeleop",
@@ -3378,6 +3382,7 @@ class SpinAroundTask(ROS2ToolCallingAgentTask):
 
 
 class MoveToFrontTask(ROS2ToolCallingAgentTask):
+    recursion_limit = 50
     complexity = "medium"
     actions_and_types: Dict[str, str] = {
         "/assisted_teleop": "nav2_msgs/action/AssistedTeleop",
@@ -3417,7 +3422,9 @@ class MoveToFrontTask(ROS2ToolCallingAgentTask):
         ]
 
     def get_system_prompt(self) -> str:
-        return ROBOT_NAVIGATION_SYSTEM_PROMPT
+        base_prompt = ROBOT_NAVIGATION_SYSTEM_PROMPT
+        tools_description = self.get_tools_description()
+        return base_prompt + tools_description
 
     def get_prompt(self) -> str:
         return "Move 2 meters to the front."
@@ -3457,6 +3464,194 @@ class MoveToFrontTask(ROS2ToolCallingAgentTask):
         ]
         self._check_multiple_tool_calls_from_list(
             tool_calls=tool_calls, expected_tool_calls=expected_tool_calls
+        )
+        if not self.result.errors:
+            self.result.success = True
+
+
+class MoveToBedTask(ROS2ToolCallingAgentTask):
+    recursion_limit = 50
+    complexity = "medium"
+    actions_and_types: Dict[str, str] = {
+        "/assisted_teleop": "nav2_msgs/action/AssistedTeleop",
+        "/backup": "nav2_msgs/action/BackUp",
+        "/compute_path_through_poses": "nav2_msgs/action/ComputePathThroughPoses",
+        "/compute_path_to_pose": "nav2_msgs/action/ComputePathToPose",
+        "/drive_on_heading": "nav2_msgs/action/DriveOnHeading",
+        "/follow_path": "nav2_msgs/action/FollowPath",
+        "/follow_waypoints": "nav2_msgs/action/FollowWaypoints",
+        "/navigate_through_poses": "nav2_msgs/action/NavigateThroughPoses",
+        "/navigate_to_pose": "nav2_msgs/action/NavigateToPose",
+        "/smooth_path": "nav2_msgs/action/SmoothPath",
+        "/spin": "nav2_msgs/action/Spin",
+        "/wait": "nav2_msgs/action/Wait",
+    }
+    topics_names_and_types = [
+        "topic: /assisted_teleop/_action/feedback\ntype: nav2_msgs/action/AssistedTeleop_FeedbackMessage\n",
+        "topic: /assisted_teleop/_action/status\ntype: action_msgs/msg/GoalStatusArray\n",
+        "topic: /backup/_action/feedback\ntype: nav2_msgs/action/BackUp_FeedbackMessage\n",
+        "topic: /backup/_action/status\ntype: action_msgs/msg/GoalStatusArray\n",
+        "topic: /behavior_server/transition_event\ntype: lifecycle_msgs/msg/TransitionEvent\n",
+        "topic: /behavior_tree_log\ntype: nav2_msgs/msg/BehaviorTreeLog\n",
+        "topic: /bond\ntype: bond/msg/Status\n",
+        "topic: /bt_navigator/transition_event\ntype: lifecycle_msgs/msg/TransitionEvent\n",
+        "topic: /camera/camera/color/camera_info\ntype: sensor_msgs/msg/CameraInfo\n",
+        "topic: /camera/camera/color/image_raw\ntype: sensor_msgs/msg/Image\n",
+        "topic: /camera/camera/depth/camera_info\ntype: sensor_msgs/msg/CameraInfo\n",
+        "topic: /camera/camera/depth/image_rect_raw\ntype: sensor_msgs/msg/Image\n",
+        "topic: /clock\ntype: rosgraph_msgs/msg/Clock\n",
+        "topic: /cmd_vel_nav\ntype: geometry_msgs/msg/Twist\n",
+        "topic: /cmd_vel_teleop\ntype: geometry_msgs/msg/Twist\n",
+        "topic: /compute_path_through_poses/_action/feedback\ntype: nav2_msgs/action/ComputePathThroughPoses_FeedbackMessage\n",
+        "topic: /compute_path_through_poses/_action/status\ntype: action_msgs/msg/GoalStatusArray\n",
+        "topic: /compute_path_to_pose/_action/feedback\ntype: nav2_msgs/action/ComputePathToPose_FeedbackMessage\n",
+        "topic: /compute_path_to_pose/_action/status\ntype: action_msgs/msg/GoalStatusArray\n",
+        "topic: /controller_server/transition_event\ntype: lifecycle_msgs/msg/TransitionEvent\n",
+        "topic: /diagnostics\ntype: diagnostic_msgs/msg/DiagnosticArray\n",
+        "topic: /drive_on_heading/_action/feedback\ntype: nav2_msgs/action/DriveOnHeading_FeedbackMessage\n",
+        "topic: /drive_on_heading/_action/status\ntype: action_msgs/msg/GoalStatusArray\n",
+        "topic: /follow_path/_action/feedback\ntype: nav2_msgs/action/FollowPath_FeedbackMessage\n",
+        "topic: /follow_path/_action/status\ntype: action_msgs/msg/GoalStatusArray\n",
+        "topic: /follow_waypoints/_action/feedback\ntype: nav2_msgs/action/FollowWaypoints_FeedbackMessage\n",
+        "topic: /follow_waypoints/_action/status\ntype: action_msgs/msg/GoalStatusArray\n",
+        "topic: /global_costmap/costmap\ntype: nav_msgs/msg/OccupancyGrid\n",
+        "topic: /global_costmap/costmap_raw\ntype: nav2_msgs/msg/Costmap\n",
+        "topic: /global_costmap/costmap_updates\ntype: map_msgs/msg/OccupancyGridUpdate\n",
+        "topic: /global_costmap/footprint\ntype: geometry_msgs/msg/Polygon\n",
+        "topic: /global_costmap/global_costmap/transition_event\ntype: lifecycle_msgs/msg/TransitionEvent\n",
+        "topic: /global_costmap/published_footprint\ntype: geometry_msgs/msg/PolygonStamped\n",
+        "topic: /global_costmap/scan\ntype: sensor_msgs/msg/LaserScan\n",
+        "topic: /goal_pose\ntype: geometry_msgs/msg/PoseStamped\n",
+        "topic: /led_strip\ntype: sensor_msgs/msg/Image\n",
+        "topic: /local_costmap/costmap\ntype: nav_msgs/msg/OccupancyGrid\n",
+        "topic: /local_costmap/costmap_raw\ntype: nav2_msgs/msg/Costmap\n",
+        "topic: /local_costmap/costmap_updates\ntype: map_msgs/msg/OccupancyGridUpdate\n",
+        "topic: /local_costmap/footprint\ntype: geometry_msgs/msg/Polygon\n",
+        "topic: /local_costmap/local_costmap/transition_event\ntype: lifecycle_msgs/msg/TransitionEvent\n",
+        "topic: /local_costmap/published_footprint\ntype: geometry_msgs/msg/PolygonStamped\n",
+        "topic: /local_costmap/scan\ntype: sensor_msgs/msg/LaserScan\n",
+        "topic: /map\ntype: nav_msgs/msg/OccupancyGrid\n",
+        "topic: /map_metadata\ntype: nav_msgs/msg/MapMetaData\n",
+        "topic: /map_saver/transition_event\ntype: lifecycle_msgs/msg/TransitionEvent\n",
+        "topic: /navigate_through_poses/_action/feedback\ntype: nav2_msgs/action/NavigateThroughPoses_FeedbackMessage\n",
+        "topic: /navigate_through_poses/_action/status\ntype: action_msgs/msg/GoalStatusArray\n",
+        "topic: /navigate_to_pose/_action/feedback\ntype: nav2_msgs/action/NavigateToPose_FeedbackMessage\n",
+        "topic: /navigate_to_pose/_action/status\ntype: action_msgs/msg/GoalStatusArray\n",
+        "topic: /odom\ntype: nav_msgs/msg/Odometry\n",
+        "topic: /odometry/filtered\ntype: nav_msgs/msg/Odometry\n",
+        "topic: /parameter_events\ntype: rcl_interfaces/msg/ParameterEvent\n",
+        "topic: /plan\ntype: nav_msgs/msg/Path\n",
+        "topic: /plan_smoothed\ntype: nav_msgs/msg/Path\n",
+        "topic: /planner_server/transition_event\ntype: lifecycle_msgs/msg/TransitionEvent\n",
+        "topic: /pose\ntype: geometry_msgs/msg/PoseWithCovarianceStamped\n",
+        "topic: /preempt_teleop\ntype: std_msgs/msg/Empty\n",
+        "topic: /rosout\ntype: rcl_interfaces/msg/Log\n",
+        "topic: /scan\ntype: sensor_msgs/msg/LaserScan\n",
+        "topic: /slam_toolbox/feedback\ntype: visualization_msgs/msg/InteractiveMarkerFeedback\n",
+        "topic: /slam_toolbox/graph_visualization\ntype: visualization_msgs/msg/MarkerArray\n",
+        "topic: /slam_toolbox/scan_visualization\ntype: sensor_msgs/msg/LaserScan\n",
+        "topic: /slam_toolbox/update\ntype: visualization_msgs/msg/InteractiveMarkerUpdate\n",
+        "topic: /smooth_path/_action/feedback\ntype: nav2_msgs/action/SmoothPath_FeedbackMessage\n",
+        "topic: /smooth_path/_action/status\ntype: action_msgs/msg/GoalStatusArray\n",
+        "topic: /smoother_server/transition_event\ntype: lifecycle_msgs/msg/TransitionEvent\n",
+        "topic: /speed_limit\ntype: nav2_msgs/msg/SpeedLimit\n",
+        "topic: /spin/_action/feedback\ntype: nav2_msgs/action/Spin_FeedbackMessage\n",
+        "topic: /spin/_action/status\ntype: action_msgs/msg/GoalStatusArray\n",
+        "topic: /tf_static\ntype: tf2_msgs/msg/TFMessage\n",
+        "topic: /trajectories\ntype: visualization_msgs/msg/MarkerArray\n",
+        "topic: /transformed_global_plan\ntype: nav_msgs/msg/Path\n",
+        "topic: /unsmoothed_plan\ntype: nav_msgs/msg/Path\n",
+        "topic: /velocity_smoother/transition_event\ntype: lifecycle_msgs/msg/TransitionEvent\n",
+        "topic: /wait/_action/feedback\ntype: nav2_msgs/action/Wait_FeedbackMessage\n",
+        "topic: /wait/_action/status\ntype: action_msgs/msg/GoalStatusArray\n",
+        "topic: /waypoint_follower/transition_event\ntype: lifecycle_msgs/msg/TransitionEvent\n",
+    ]
+    action_models: List[type[ActionBaseModel]] = [DriveOnHeadingAction]
+    services_and_types: Dict[str, str] = NAVIGATION_SERVICES_AND_TYPES
+
+    def __init__(self, logger: loggers_type | None = None) -> None:
+        super().__init__(logger=logger)
+        action_strings = [
+            f"action: {action}\ntype: {act_type}\n"
+            for action, act_type in self.actions_and_types.items()
+        ]
+        self.expected_tools: List[BaseTool] = [
+            MockGetROS2ActionsNamesAndTypesTool(
+                mock_actions_names_and_types=action_strings
+            ),
+            MockStartROS2ActionTool(
+                available_actions=list(self.actions_and_types.keys()),
+                available_action_types=list(self.actions_and_types.values()),
+                available_action_models=self.action_models,
+            ),
+            MockGetROS2ActionFeedbackTool(),
+            MockGetROS2ActionResultTool(),
+            MockGetROS2MessageInterfaceTool(mock_interfaces=INTERFACES),
+            MockGetROS2TopicsNamesAndTypesTool(
+                mock_topics_names_and_types=self.topics_names_and_types
+            ),
+            MockGetDistanceToObjectsTool(
+                available_topics=[
+                    "/camera/camera/color/image_raw",
+                    "/camera/camera/depth/image_rect_raw",
+                ],
+                mock_distance_measurements=[
+                    DistanceMeasurement(name="bed", distance=5.0)
+                ],
+            ),
+        ]
+
+    def get_system_prompt(self) -> str:
+        return ROBOT_NAVIGATION_SYSTEM_PROMPT
+
+    def get_prompt(self) -> str:
+        return "Move closer to the to the bed. Leave 1 meter of space between the bed and you."
+
+    def verify_tool_calls(self, response: dict[str, Any]):
+        messages = response["messages"]
+        ai_messages: Sequence[AIMessage] = [
+            message for message in messages if isinstance(message, AIMessage)
+        ]
+        tool_calls = [
+            tool_call for message in ai_messages for tool_call in message.tool_calls
+        ]
+        expected_tool_calls: list[dict[str, Any]] = [
+            {"name": "get_ros2_actions_names_and_types", "args": {}},
+            {"name": "get_ros2_topics_names_and_types", "args": {}},
+            {
+                "name": "GetDistanceToObjectsTool",
+                "args": {
+                    "camera_topic": "/camera/camera/color/image_raw",
+                    "depth_topic": "/camera/camera/depth/image_rect_raw",
+                    "object_names": ["bed"],
+                },
+            },
+            {
+                "name": "start_ros2_action",
+                "args": {
+                    "action_name": "/drive_on_heading",
+                    "action_type": "nav2_msgs/action/DriveOnHeading",
+                    "action_args": {
+                        "target": {"x": 4.0},
+                        "speed": ANY_VALUE,
+                    },
+                    # TODO (mkotynia): add support for ranges of allowed values
+                },
+                "optional_args": {
+                    "action_name": "/drive_on_heading",
+                    "action_type": "nav2_msgs/action/DriveOnHeading",
+                    "action_args": {
+                        "target": {"y": 0.0, "z": 0.0},
+                        "time_allowance": {"sec": ANY_VALUE, "nanosec": ANY_VALUE},
+                    },
+                },
+            },
+            {"name": "get_ros2_action_feedback", "args": {"action_id": ANY_VALUE}},
+            {"name": "get_ros2_action_result", "args": {"action_id": ANY_VALUE}},
+        ]
+        self._check_multiple_tool_calls_from_list(
+            tool_calls=tool_calls,
+            expected_tool_calls=expected_tool_calls,
         )
         if not self.result.errors:
             self.result.success = True
