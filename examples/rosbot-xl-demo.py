@@ -193,11 +193,12 @@ def initialize_agent():
                 results = []
                 if poses is None:
                     resp = f"{img_desc}. I can see {object_name}, but I can't detect it's position"
-                for p in poses:
-                    r = {'x': round(p.position.x, 2), 'y': round(p.position.y, 2)}
-                    results.append(r)
-                resp = f'{img_desc}. I can see {output.count} {object_name}s.'
-                resp = f'{resp}. Their centroids are: {results}'
+                else:
+                    for p in poses:
+                        r = {'x': round(p.position.x, 2), 'y': round(p.position.y, 2)}
+                        results.append(r)
+                    resp = f'{img_desc}. I can see {output.count} {object_name}s.'
+                    resp = f'{resp}. Their centroids are: {results}'
             else:
                 resp = f'{img_desc}. I cannot see a {object_name}.'
 
