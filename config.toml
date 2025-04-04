@@ -1,6 +1,6 @@
 [vendor]
-simple_model = "ollama"
-complex_model = "ollama"
+simple_model = "openai"
+complex_model = "openai"
 embeddings_model = "ollama"
 
 [aws]
@@ -16,8 +16,8 @@ embeddings_model = "text-embedding-ada-002"
 base_url = "https://api.openai.com/v1/" # for openai compatible apis
 
 [ollama]
-simple_model = "gemma3"
-complex_model = "qwen2.5:14b"
+simple_model = "PetrosStav/gemma3-tools:12b"
+complex_model = "PetrosStav/gemma3-tools:12b"
 embeddings_model = "llama3.2"
 base_url = "http://via-ip-robo-srv-004.robotec.tm.pl:11434"
 
