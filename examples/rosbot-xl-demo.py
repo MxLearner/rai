@@ -19,11 +19,10 @@ import rclpy.executors
 import rclpy.logging
 
 # import streamlit as st
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 from rai.agents.conversational_agent import create_conversational_agent
 from rai.communication.ros2 import ROS2ARIConnector
-from rai.messages import HumanMultimodalMessage
 from rai.tools.ros.manipulation import GetObjectPositionsTool
 from rai.tools.ros2 import (
     GetROS2ImageTool,
@@ -55,29 +54,30 @@ def initialize_agent():
             source_frame="base_link", target_frame="map", timeout_sec=5.0
         )
 
-    @tool
-    def what_do_i_see() -> str:
+    @tool(response_format="content_and_artifact")
+    def what_do_i_see():
         """
         Get what you see
         """
-        llm = get_llm_model("simple_model")
-        _, artifact = image_tool._run(
+        # llm = get_llm_model("simple_model")
+        response, artifact = image_tool._run(
             topic="/camera/camera/color/image_raw", timeout_sec=5.0
         )
-        system_prompt = "You are an expert in image analysis. You are given an image and you need to describe what you see in it. Reply with I see..."
-        task = [
-            SystemMessage(content=system_prompt),
-            HumanMultimodalMessage(
-                content="Please describe what you see in the image. Reply with I see...",
-                images=artifact["images"],
-            ),
-        ]
-        response = llm.invoke(task, config={"callbacks": []})
+        return response, artifact
+        # system_prompt = "You are an expert in image analysis. You are given an image and you need to describe what you see in it. Reply with I see..."
+        # task = [
+        #     SystemMessage(content=system_prompt),
+        #     HumanMultimodalMessage(
+        #         content="Please describe what you see in the image. Reply with I see...",
+        #         images=artifact["images"],
+        #     ),
+        # ]
+        # response = llm.invoke(task, config={"callbacks": []})
         return cast(str, response.content)
 
     tools = [
         where_am_i,
-        what_do_i_see,
+        # what_do_i_see,
         NavigateToPoseTool(
             connector=connector,
             action_name="navigate_to_pose",
