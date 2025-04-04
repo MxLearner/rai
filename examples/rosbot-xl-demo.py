@@ -252,7 +252,7 @@ def initialize_agent():
     estimate_object_size args: {"object_name" : "cube"}
     -> return (width: 1.0, height: 1.0)
     comment: it is important to set the navigation goal so that it is outside of the object boundaries with some margin. (20 cm is fine)
-    navigate_to_pose args: (x: 1.0, y:0.7, yaw: 0.0)
+    go_to_pose args: (x: 1.0, y:0.7, yaw: 0.0)
     -> returned: Robot navigating to pose, comment: navigation is started and running in the background. Status of navigation (is it in progress/done/failed) can be checked with `get_navigate_to_pose_result` tool or canceled with `cancel_navigate_to_pose`
     wait_for_n_seconds args: {'n': 10}
     -> returned: Done
@@ -273,7 +273,7 @@ def initialize_agent():
     -> returned: navigation failed
     where_am_i args: {}
     -> return (x: 1.3, y: -3.0, yaw: 0.5), comment: navigation failed and goal is far, navigate once again 
-    navigate_to_pose args: (x: 0.3, y: -0.85, yaw: 0.0)
+    go_to_pose args: (x: 0.3, y: -0.85, yaw: 0.0)
     -> returned: Robot navigating to pose
     wait_for_n_seconds args: {'n': 10}
     -> returned: navigation succeeded
