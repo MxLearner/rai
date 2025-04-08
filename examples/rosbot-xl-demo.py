@@ -127,7 +127,7 @@ def initialize_agent():
         return {"x": x, "y": y, "yaw": yaw}
 
     @tool
-    def what_do_i_see(object_name: str) -> str:
+    def what_do_i_see(object_name: str="") -> str:
         """
         Get what you see. You can pass specific object name to get it's location.
 
@@ -238,9 +238,14 @@ def initialize_agent():
 
     Available tools:
     """ + render_text_description_and_args(tools) + """
-    Important note:  
 
     Examples of successful tasks:
+    **Task 1**
+    User: "How are you"
+    - no tool calls 
+    example response: "I'm fine, thank you"
+    
+    Important: not every user query required tool calls. Use them when necessary
     
     **Task 1**
     User: "Drive to the left of the cube"
