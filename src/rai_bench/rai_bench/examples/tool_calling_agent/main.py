@@ -22,15 +22,15 @@ from rai.utils.model_initialization import (
     get_llm_model_config_and_vendor,
 )
 
-from rai_bench.examples.tool_calling_agent_bench_tasks import tasks
-from rai_bench.tool_calling_agent_bench.agent_bench import ToolCallingAgentBenchmark
+from rai_bench.examples.tool_calling_agent.tasks import tasks
+from rai_bench.tool_calling_agent_bench.benchmark import ToolCallingAgentBenchmark
 
 if __name__ == "__main__":
     current_test_name = Path(__file__).stem
 
     now = datetime.now()
     experiment_dir = (
-        Path("src/rai_bench/rai_bench/experiments")
+        Path("src/rai_bench/rai_bench/experiments/o3de_manipulation")
         / current_test_name
         / now.strftime("%Y-%m-%d_%H-%M-%S")
     )

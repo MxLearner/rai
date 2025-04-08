@@ -15,12 +15,15 @@
 import logging
 import os
 from dataclasses import dataclass
-from typing import List, Literal, Optional, Tuple, cast
+from typing import Any, List, Literal, Optional, Tuple, cast
 
 import coloredlogs
 import tomli
+from langchain_aws import ChatBedrock
 from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.tracers.langchain import LangChainTracer
+from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from langsmith import Client
 
 logger = logging.getLogger(__name__)
@@ -119,8 +122,8 @@ def get_llm_model_config_and_vendor(
 def get_llm_model(
     model_type: Literal["simple_model", "complex_model"],
     vendor: Optional[str] = None,
-    **kwargs,
-):
+    **kwargs: Any,
+) -> ChatOpenAI | ChatBedrock | ChatOllama:
     model_config, vendor = get_llm_model_config_and_vendor(model_type, vendor)
     model = getattr(model_config, model_type)
     logger.info(f"Initializing {model_type}: Vendor: {vendor}, Model: {model}")
