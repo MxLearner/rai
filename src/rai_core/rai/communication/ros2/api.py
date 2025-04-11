@@ -469,6 +469,9 @@ class ConfigurableROS2TopicAPI(ROS2TopicAPI):
         self.topic_queue_locks: Dict[str, Lock] = {}
         self.topic_config: Dict[str, TopicConfig] = {}
 
+    def get_subs(self):
+        return self._subscribtions
+
     def _generic_callback(self, topic: str, msg: Any) -> None:
         """Handle incoming messages for a topic based on queue configuration.
 
@@ -563,6 +566,7 @@ class ConfigurableROS2TopicAPI(ROS2TopicAPI):
             self.topic_msg_queue[topic] = Queue()
         self.topic_config[topic] = config
         self.topic_queue_locks[topic] = Lock()
+        print(f"Configring sub: {self._subscribtions}")
 
     def publish_configured(self, topic: str, msg_content: dict[str, Any]) -> None:
         """Publish a message to a ROS2 topic.
@@ -635,6 +639,14 @@ class ConfigurableROS2TopicAPI(ROS2TopicAPI):
             raise ValueError(
                 f"No message received from topic: {topic} within {timeout_sec} seconds"
             )
+
+    def receive_all(self, topic: str):
+        print(f"Running receive all for {topic}")
+        if topic not in self.topic_msg_queue:
+            return
+        while not self.topic_msg_queue[topic].empty():
+            msg = self.topic_msg_queue[topic].get()
+            yield msg
 
 
 class ROS2ServiceAPI:

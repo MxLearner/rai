@@ -1,5 +1,3 @@
-# Copyright (C) 2025 Robotec.AI
-#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,7 +13,7 @@
 import threading
 import time
 import uuid
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import rclpy
 import rclpy.executors
@@ -29,9 +27,10 @@ from tf2_ros import Buffer, LookupException, TransformListener, TransformStamped
 
 from rai.communication import ARIConnector
 from rai.communication.ros2.api import (
+    ConfigurableROS2TopicAPI,
     ROS2ActionAPI,
     ROS2ServiceAPI,
-    ROS2TopicAPI,
+    TopicConfig,
 )
 from rai.communication.ros2.connectors.action_mixin import ROS2ActionMixin
 from rai.communication.ros2.connectors.service_mixin import ROS2ServiceMixin
@@ -93,20 +92,45 @@ class ROS2ARIConnector(ROS2ActionMixin, ROS2ServiceMixin, ARIConnector[ROS2ARIMe
     def __init__(
         self,
         node_name: str = f"rai_ros2_ari_connector_{str(uuid.uuid4())[-12:]}",
+        sources: List[Union[str, Tuple[str, TopicConfig]]] | None = None,
         destroy_subscribers: bool = False,
+        use_configurable_topics_api: bool = False,
     ):
         super().__init__()
         self._node = Node(node_name)
-        self._topic_api = ROS2TopicAPI(self._node, destroy_subscribers)
+
+        self._topic_api = ConfigurableROS2TopicAPI(self._node)
         self._service_api = ROS2ServiceAPI(self._node)
         self._actions_api = ROS2ActionAPI(self._node)
         self._tf_buffer = Buffer(node=self._node)
         self._tf_listener = TransformListener(self._tf_buffer, self._node)
 
+        # TODO(boczekbartek): make it ConfigurableARIConnecotr??
+        if sources is None:
+            sources = []
+        _sources = [
+            (
+                source
+                if isinstance(source, tuple)
+                else (source, TopicConfig(is_subscriber=True))
+            )
+            for source in sources
+        ]
+        self._configure_subscribers(_sources)
+
         self._executor = MultiThreadedExecutor()
         self._executor.add_node(self._node)
         self._thread = threading.Thread(target=self._executor.spin)
         self._thread.start()
+
+    def _configure_subscribers(self, sources: List[Tuple[str, TopicConfig]]):
+        if not isinstance(self._topic_api, ConfigurableROS2TopicAPI):
+            raise AttributeError(
+                f"{self.__class__.__name__} instance must be created with use_configurable_topics_api=True to be able to configure_subscribers"
+            )
+        for source in sources:
+            print(f"confifuring: {source}")
+            self._topic_api.configure_subscriber(source[0], source[1])
 
     def get_topics_names_and_types(self) -> List[Tuple[str, List[str]]]:
         return self._topic_api.get_topic_names_and_types()
@@ -153,6 +177,14 @@ class ROS2ARIConnector(ROS2ActionMixin, ROS2ServiceMixin, ARIConnector[ROS2ARIMe
         return ROS2ARIMessage(
             payload=msg, metadata={"msg_type": str(type(msg)), "topic": source}
         )
+
+    def receive_all(self, source: str):
+        if isinstance(self._topic_api, ConfigurableROS2TopicAPI):
+            return self._topic_api.receive_all(topic=source)
+        else:
+            raise AttributeError(
+                f"{self.__class__.__name__} instance must be created with use_configurable_topics_api=True to be able to receive_all"
+            )
 
     @staticmethod
     def wait_for_transform(
