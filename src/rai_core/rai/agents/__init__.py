@@ -14,12 +14,10 @@
 
 from rai.agents.conversational_agent import create_conversational_agent
 from rai.agents.react_agent import ReActAgent
-from rai.agents.state_based import create_state_based_agent
 from rai.agents.tool_runner import ToolRunner
 
 __all__ = [
     "ReActAgent",
     "ToolRunner",
     "create_conversational_agent",
-    "create_state_based_agent",
 ]
