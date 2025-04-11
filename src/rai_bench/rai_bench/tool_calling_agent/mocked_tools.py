@@ -64,7 +64,7 @@ class MockGetROS2TopicsNamesAndTypesTool(GetROS2TopicsNamesAndTypesTool):
 
 class MockGetROS2ImageTool(GetROS2ImageTool):
     connector: ROS2ARIConnector = MagicMock(spec=ROS2ARIConnector)
-    avilable_topics: List[str]
+    available_topics: List[str]
 
     def _run(
         self, topic: str, timeout_sec: float = 1.0
